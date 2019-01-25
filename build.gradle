@@ -1,0 +1,292 @@
+
+buildscript {
+    ext { springBootVersion = '2.1.0.RELEASE'
+	      hibernateVersion = '5.9.1.Final'
+		  httpClientVersion = '4.5.2'
+		  swaggerVersion = '2.8.0'
+		  jgitVersion = '4.11.0.201803080745-r'
+		 }
+		repositories {
+		mavenCentral()
+		maven { url "https://repo.spring.io/snapshot" }
+		maven { url "https://repo.spring.io/milestone" }
+        maven { url 'https://jitpack.io' }
+		jcenter()
+		}
+    dependencies { classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+    			   classpath("com.eriwen:gradle-js-plugin:2.12.0")
+    			   classpath('com.bmuschko:gradle-docker-plugin:3.2.5') }
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'com.eriwen.gradle.js'
+apply plugin: 'jacoco'
+apply plugin: 'project-report'
+apply plugin: 'com.bmuschko.docker-remote-api'
+
+jar {
+    baseName = 'viglet-turing-search'
+    version =  '0.3.1'
+}
+
+bootJar {
+    launchScript()
+}
+
+repositories {
+	mavenCentral()
+	maven { url "https://repo.spring.io/snapshot" }
+	maven { url "https://repo.spring.io/milestone" }
+    maven { url 'https://jitpack.io' }
+	jcenter()
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+tasks.withType(JavaCompile) {
+	options.encoding = 'UTF-8'
+}
+
+task combineSNSystemJs(type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = "${projectDir}/src/main/resources/public/js/sn/build/extract/system"
+    dest = "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turSNSystem.js"
+}
+
+task combineSNFeatureJs(dependsOn: ':combineSNSystemJs', type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = "${projectDir}/src/main/resources/public/js/sn/build/extract/feature"
+    dest = "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turSNFeature.js"
+}
+
+task combineSNAllJs(dependsOn: ':combineSNFeatureJs', type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = ["${projectDir}/src/main/resources/public/js/sn/build/extract/main/__turSNFactory.js", "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turSNSystem.js", "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turSNFeature.js"]
+    dest = "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turing-sn.js"
+}
+
+task minifySNAllJs(dependsOn: ':combineSNAllJs', type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
+ 	source = "${projectDir}/src/main/resources/public/js/sn/build/aggregate/turing-sn.js"
+    dest = file("${projectDir}/src/main/resources/public/js/sn/dist/turing-sn-min.js")
+    closure {
+        warningLevel = 'QUIET'
+    }
+}
+
+// Combine JS files
+task combineSystemJs(dependsOn: ':minifySNAllJs', type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = "${projectDir}/src/main/resources/public/js/build/extract/system"
+    dest = "${projectDir}/src/main/resources/public/js/build/aggregate/turSystem.js"
+}
+
+task combineFeatureJs(dependsOn: ':combineSystemJs', type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = "${projectDir}/src/main/resources/public/js/build/extract/feature"
+    dest = "${projectDir}/src/main/resources/public/js/build/aggregate/turFeature.js"
+}
+
+task combineAllJs(dependsOn: ':combineFeatureJs', type: com.eriwen.gradle.js.tasks.CombineJsTask) {
+    source = ["${projectDir}/src/main/resources/public/js/build/extract/main/__turFactory.js", "${projectDir}/src/main/resources/public/js/build/aggregate/turSystem.js", "${projectDir}/src/main/resources/public/js/build/aggregate/turFeature.js"]
+    dest = "${projectDir}/src/main/resources/public/js/build/aggregate/turing.js"
+}
+
+task minifyAllJs(dependsOn: ':combineAllJs', type: com.eriwen.gradle.js.tasks.MinifyJsTask) {
+ 	source = "${projectDir}/src/main/resources/public/js/build/aggregate/turing.js"
+    dest = file("${projectDir}/src/main/resources/public/js/dist/turing-min.js")
+    closure {
+        warningLevel = 'QUIET'
+    }
+}
+
+task stage(dependsOn: ['build', 'clean'])
+
+compileJava.dependsOn(minifyAllJs)
+
+build.mustRunAfter clean
+
+javadoc {
+    source = sourceSets.main.allJava
+    classpath = configurations.compile
+    destinationDir = file("store/doc/javadoc")
+}
+
+dependencies {
+	compile (group: 'org.apache.hadoop', name: 'hadoop-common', version: '3.1.1') {
+		exclude(module: 'guava')
+		exclude(module: 'commons-logging')
+		exclude(module: 'log4j')
+		exclude(module: 'slf4j-api')
+		exclude(module: 'slf4j-log4j12')
+		exclude(module: 'jackson-mapper-asl')
+		exclude(module: 'jackson-core-asl')
+		exclude(module: 'jersey-core')
+		exclude(module: 'jersey-json')
+		exclude(module: 'jersey-server')				
+		exclude(module: 'jasper-runtime')
+		exclude(module: 'jasper-compiler')
+		exclude(module: 'servlet-api')
+		exclude(module: 'jsp-api')
+		exclude(module: 'commons-el')
+		
+
+	}
+	
+	compile (group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '3.1.1') {
+		exclude(module: 'jackson-mapper-asl')
+		exclude(module: 'jackson-core-asl')
+		exclude(module: 'jersey-core')
+		exclude(module: 'jersey-json')
+		exclude(module: 'jersey-server')				
+		exclude(module: 'jasper-runtime')
+		exclude(module: 'jasper-compiler')
+		exclude(module: 'servlet-api')
+		exclude(module: 'jsp-api')
+		exclude(module: 'log4j')
+	}
+	compile (group: 'org.apache.hadoop', name: 'hadoop-auth', version: '3.1.1') {
+		exclude(module: 'commons-logging')
+		exclude(module: 'log4j')
+		exclude(module: 'slf4j-api')
+		exclude(module: 'slf4j-log4j12')
+		exclude(module: 'jackson-mapper-asl')
+		exclude(module: 'jackson-core-asl')
+		exclude(module: 'jersey-core')
+		exclude(module: 'jersey-json')
+		exclude(module: 'jersey-server')				
+		exclude(module: 'jasper-runtime')
+		exclude(module: 'jasper-compiler')
+		exclude(module: 'servlet-api')
+		exclude(module: 'jsp-api')
+	}
+	compile (group: 'org.apache.hadoop', name: 'hadoop-core', version: '1.2.1') {
+		exclude(module: 'jersey-core')
+		exclude(module: 'jersey-json')
+		exclude(module: 'jersey-server')
+		exclude(module: 'jackson-mapper-asl')
+		exclude(module: 'jackson-core-asl')
+		exclude(module: 'hsqldb')
+		exclude(module: 'commons-el')
+	}
+		
+ 	// Spring Boot
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
+ 
+    compile (group: 'org.springframework.boot', name: 'spring-boot-starter-undertow', version:"${springBootVersion}"){ 
+    exclude(module: 'javax.el')
+    }
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version:"${springBootVersion}"
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-parent', version:"${springBootVersion}"
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-activemq', version:"${springBootVersion}"   
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-thymeleaf', version:"${springBootVersion}"
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-security', version:"${springBootVersion}"
+	
+	// Spring
+  	compile group: 'org.springframework', name: 'spring-test', version: '5.1.2.RELEASE'
+
+ 	// Jackson
+   	compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-hibernate5', version: '2.9.7'
+   	  	
+  	// H2
+    compile group: 'com.h2database', name: 'h2', version:'1.4.197'
+    
+    // MariaDB
+    compile group: 'org.mariadb.jdbc', name: 'mariadb-java-client', version: '2.3.0'
+
+            
+	// Solr
+    compile(group: 'org.apache.solr', name: 'solr-solrj', version:'4.6.0') {
+exclude(module: 'httpclient')
+exclude(module: 'httpmime')
+    }
+    
+    // JSON
+    compile group: 'org.json', name: 'json', version:'20140107'
+    
+    // HTTP Client
+    compile(group: 'org.apache.httpcomponents', name: 'httpclient', version:'4.5.2') {
+exclude(module: 'commons-logging')
+    }
+    
+    // HTTP Mime
+    compile group: 'org.apache.httpcomponents', name: 'httpmime', version:'4.5.2'
+    
+    // CoreNLP
+    compile group: 'edu.stanford.nlp', name: 'stanford-corenlp', version:'3.7.0'
+    
+    //ASM
+    compile group: 'asm', name: 'asm', version:'3.3.1'
+    
+    // OpenNLP
+    compile group: 'org.apache.opennlp', name: 'opennlp-tools', version:'1.7.2'
+    
+    // Apache Commons
+    compile group: 'commons-io', name: 'commons-io', version:'2.5'
+    compile group: 'commons-lang', name: 'commons-lang', version:'2.6'
+  
+    // EhCache
+    compile group: 'net.sf.ehcache', name: 'ehcache', version:'2.10.3'
+    
+    // Tika
+    compile group: 'org.apache.tika', name: 'tika-core', version:'1.5'
+    compile group: 'org.apache.tika', name: 'tika-parsers', version:'1.5'
+    
+    //ActiveMQ using KahaDB
+    compile group: 'org.apache.activemq', name: 'activemq-kahadb-store', version: '5.14.5'
+	
+	// Swagger 2
+	compile group: 'io.springfox', name: 'springfox-swagger2', version: "${swaggerVersion}"
+	compile group: 'io.springfox', name: 'springfox-swagger-ui', version: "${swaggerVersion}"
+
+	// WebJars
+	compile 'org.webjars.bower:jquery:1.12.4'
+	compile 'org.webjars:bootstrap:3.3.7-1'
+	compile 'org.webjars.bower:moment:2.22.2'
+	compile 'org.webjars.bower:angular:1.7.3'
+	compile 'org.webjars.bower:angular-ui-router:1.0.14'
+	compile 'org.webjars.bower:angular-translate:2.17.0'
+	compile 'org.webjars.bowergithub.angular:bower-angular-resource:1.7.3'
+	compile 'org.webjars.bower:angular-animate:1.7.3'
+	compile 'org.webjars.bower:angular-sanitize:1.7.3'
+	compile 'org.webjars.bower:angular-bootstrap:2.5.0'
+	compile 'org.webjars.bower:angular-cookies:1.7.3'
+	compile 'org.webjars.bower:angular-sanitize:1.7.3'
+	compile 'org.webjars.bower:angular-moment:1.2.0'
+	compile 'org.webjars.bower:font-awesome:4.7.0'
+	
+     // Turing Core
+    implementation 'com.github.openturing:turing-core-lib:498f802d9f'
+    
+    // Turing NLP
+    implementation 'com.github.openturing:turing-nlp-lib:bd817f8af1'
+
+    // Turing Search
+    implementation 'com.github.openturing:turing-search-lib:26caf762f9'
+
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.10.2'
+}
+
+test {
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+    
+ jacocoTestReport {
+    reports {
+        xml.enabled true
+        html.enabled false
+    }
+}
+
+bootRun {
+    if (project.hasProperty('args')) {
+        args project.args.split(',')
+    }
+}
+
+check.dependsOn jacocoTestReport 
+
+}
